@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use uom::fmt::DisplayStyle;
-use uom::si::f64::{Area, Mass, Volume};
+use uom::si::f64::{Area, Mass, Time, Volume};
 use uom::si::mass::kilogram;
 use uom::si::pressure::bar;
 use uom::si::thermodynamic_temperature::degree_celsius;
@@ -74,6 +74,7 @@ impl WaterContainer {
             self.steam = Water::zero();
         } else {
             // Evaporate water and condensate steam.
+            // First, compute the mass that should be evaporated and condensated to step towards the equillibrium.
             let pressure = self.pressure();
             let water_saturation_pressure = self.water.saturation_pressure();
             let steam_saturation_pressure = self.steam.saturation_pressure();
@@ -84,8 +85,18 @@ impl WaterContainer {
                 / (water::SPECIAL_IDEAL_GAS_CONSTANT * self.water.temperature());
             let steam_condensation_mass = steam_condensation_potential
                 / (water::SPECIAL_IDEAL_GAS_CONSTANT * self.steam.temperature());
-            let water_evaporation_mass = water_evaporation_mass.max(Mass::zero());
-            let steam_condensation_mass = steam_condensation_mass.max(Mass::zero());
+            let water_evaporation_mass = water_evaporation_mass
+                .max(Mass::zero())
+                .min(self.water.mass());
+            let steam_condensation_mass = steam_condensation_mass
+                .max(Mass::zero())
+                .min(self.steam.mass());
+
+            // Then, we need to take the phase change energy into account.
+            // We take the energy required for evaporation out of the total body of water.
+            // This may reduce the maximal evaporation mass again.
+
+            // TODO evaporation and condensation energy
 
             self.water.simultaneous_mass_exchange(
                 &mut self.steam,
@@ -93,6 +104,12 @@ impl WaterContainer {
                 steam_condensation_mass,
             );
         }
+    }
+
+    /// Transfer heat between the steam and the water in this container.
+    /// The transfer speed is dependent on the surface area parameter.
+    pub fn convect(&mut self, _time: Time) {
+        todo!()
     }
 }
 

@@ -299,6 +299,7 @@ pub fn heat_capacity() -> SpecificHeatCapacity {
     SpecificHeatCapacity::new::<joule_per_kilogram_kelvin>(4180.0)
 }
 
-pub fn evaporization_energy() -> AvailableEnergy {
+/// The energy required to evaporate water, and set free by condensing water.
+pub fn phase_change_energy() -> AvailableEnergy {
     AvailableEnergy::new::<joule_per_gram>(2230.0)
 }
