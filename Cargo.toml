@@ -6,5 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-uom = { version = "0.35.0", features = ["autoconvert"] }
+uom = { version = "0.35.0" }
+typenum = "1.17.0"
 lazy_static = "1.4.0"

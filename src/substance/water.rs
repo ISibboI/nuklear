@@ -1,16 +1,23 @@
+use std::marker::PhantomData;
+use typenum::{N1, N2, P2, Z0};
 use uom::num_traits::Zero;
 use uom::si::available_energy::joule_per_gram;
-use uom::si::f64::AvailableEnergy;
+use uom::si::f64::{AvailableEnergy, Pressure};
 use uom::si::ratio::ratio;
 use uom::si::{
-    f64::{SpecificHeatCapacity, Mass, ThermodynamicTemperature, Volume},
-    specific_heat_capacity::joule_per_kilogram_kelvin,
+    f64::{Mass, MassDensity, SpecificHeatCapacity, ThermodynamicTemperature, Volume},
     mass::kilogram,
+    mass_density::gram_per_cubic_centimeter,
+    pressure::millibar,
+    specific_heat_capacity::joule_per_kilogram_kelvin,
     temperature_interval,
+    thermodynamic_temperature::degree_celsius,
     thermodynamic_temperature::kelvin,
+    Quantity, ISQ, SI,
 };
 
-use self::constants::density_by_temperature;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Water {
@@ -30,19 +37,61 @@ impl Water {
         }
     }
 
-    /// The heat capacity of water.
-    /// We treat it as the same over all temperatures and phases to avoid creating or losing energy due to moving boiling point.
-    pub fn heat_capacity() -> SpecificHeatCapacity {
-        SpecificHeatCapacity::new::<joule_per_kilogram_kelvin>(4180.0)
+    pub fn mass(&self) -> Mass {
+        self.mass
     }
 
-    pub fn evaporization_energy() -> AvailableEnergy {
-        AvailableEnergy::new::<joule_per_gram>(2230.0)
+    pub fn temperature(&self) -> ThermodynamicTemperature {
+        self.temperature
     }
 
+    /// The volume occupied by this water at its temperature.
+    /// The water is assumed to be liquid.
+    /// Pressure is assumed to be roughly one bar for temperatures below 100°C,
+    /// and above that it is assumed to be saturation pressure.
     pub fn volume(&self) -> Volume {
         let density = density_by_temperature(self.temperature);
         self.mass / density
+    }
+
+    /// Remove some mass from this water while keeping temperature.
+    pub fn remove(&mut self, mass: Mass) -> Water {
+        assert!(mass <= self.mass);
+        self.mass -= mass;
+        Water {
+            mass,
+            temperature: self.temperature,
+        }
+    }
+
+    /// The pressure excerted by this water at its temperature in the given volume.
+    /// The water is assumed to be gaseous.
+    /// The pressure is computed using the ideal gas law.
+    pub fn pressure(&self, volume: Volume) -> Pressure {
+        // ideal gas law pV = mR'T, where R' is R scaled for the molar mass of water.
+        // R' = R / 0.018015kg/mol
+        let right_side = self.mass * SPECIAL_IDEAL_GAS_CONSTANT * self.temperature;
+        right_side / volume
+    }
+
+    /// The saturation pressure of this water based on its temperature.
+    pub fn saturation_pressure(&self) -> Pressure {
+        saturation_pressure_by_temperature(self.temperature)
+    }
+
+    /// Move mass between this water and another water.
+    /// Specifically, first remove the mass from each water while keeping temperature,
+    /// and then mix it with the other water, while updating temperature.
+    pub fn simultaneous_mass_exchange(
+        &mut self,
+        other: &mut Water,
+        outgoing_mass: Mass,
+        incoming_mass: Mass,
+    ) {
+        let outgoing_water = self.remove(outgoing_mass);
+        let incoming_water = other.remove(incoming_mass);
+        *self += incoming_water;
+        *other += outgoing_water;
     }
 }
 
@@ -61,6 +110,12 @@ impl std::ops::Add for Water {
         };
 
         Self { mass, temperature }
+    }
+}
+
+impl std::ops::AddAssign for Water {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
     }
 }
 
@@ -92,23 +147,16 @@ impl std::ops::Sub<Volume> for Water {
 }
 
 mod constants {
+    use lazy_static::lazy_static;
+
     // boiling point at low pressure https://www.myengineeringtools.com/Data_Diagrams/Water_Boiling_Point_Vs_Pressure.html
     // boiling point at high pressure https://www.engineeringtoolbox.com/water-vapor-saturation-pressure-d_599.html
-
-    use lazy_static::lazy_static;
-    use uom::si::{
-        f64::{MassDensity, Pressure, ThermodynamicTemperature},
-        mass_density::gram_per_cubic_centimeter,
-        pressure::millibar,
-        thermodynamic_temperature::degree_celsius,
-    };
-
     use crate::interpolation_table::{LimitBehaviour, LinearInterpolationTable};
 
     lazy_static! {
         /// Celsius -> g/cm^3
         /// High temperatures (above 100) roughly at boiling pressure
-        static ref DENSITY_BY_TEMPERATURE: LinearInterpolationTable =
+        pub static ref DENSITY_BY_TEMPERATURE: LinearInterpolationTable =
             LinearInterpolationTable::new(LimitBehaviour::Clamp, vec![
                 (0.0, 0.9998395),
                 (3.984, 0.999972),
@@ -159,7 +207,7 @@ mod constants {
 
         /// mbar -> Celsius
         /// above the critical point, we treat it as liquid
-        static ref BOILING_POINT_BY_PRESSURE_RAW: Vec<(f64, f64)> = vec![
+        pub static ref BOILING_POINT_BY_PRESSURE_RAW: Vec<(f64, f64)> = vec![
             (0.003, -68.0),
             (0.017, -57.0),
             (0.03, -51.0),
@@ -213,26 +261,44 @@ mod constants {
             (210441.0, 1e50),
         ];
 
-        static ref BOILING_POINT_BY_PRESSURE: LinearInterpolationTable = LinearInterpolationTable::new(LimitBehaviour::Clamp, BOILING_POINT_BY_PRESSURE_RAW.clone());
+        pub static ref BOILING_POINT_BY_PRESSURE: LinearInterpolationTable = LinearInterpolationTable::new(LimitBehaviour::Clamp, BOILING_POINT_BY_PRESSURE_RAW.clone());
 
-        static ref SATURATION_PRESSURE_BY_TEMPERATURE: LinearInterpolationTable = LinearInterpolationTable::new(LimitBehaviour::Clamp, BOILING_POINT_BY_PRESSURE_RAW.iter().copied().map(|(pressure, temperature)| (temperature, pressure)).collect());
+        pub static ref SATURATION_PRESSURE_BY_TEMPERATURE: LinearInterpolationTable = LinearInterpolationTable::new(LimitBehaviour::Clamp, BOILING_POINT_BY_PRESSURE_RAW.iter().copied().map(|(pressure, temperature)| (temperature, pressure)).collect());
     }
+}
 
-    pub fn density_by_temperature(temperature: ThermodynamicTemperature) -> MassDensity {
-        let temperature = temperature.get::<degree_celsius>();
-        let density = DENSITY_BY_TEMPERATURE.get(temperature);
-        MassDensity::new::<gram_per_cubic_centimeter>(density)
-    }
+fn density_by_temperature(temperature: ThermodynamicTemperature) -> MassDensity {
+    let temperature = temperature.get::<degree_celsius>();
+    let density = constants::DENSITY_BY_TEMPERATURE.get(temperature);
+    MassDensity::new::<gram_per_cubic_centimeter>(density)
+}
 
-    pub fn boiling_point_by_pressure(pressure: Pressure) -> ThermodynamicTemperature {
-        let pressure = pressure.get::<millibar>();
-        let temperature = BOILING_POINT_BY_PRESSURE.get(pressure);
-        ThermodynamicTemperature::new::<degree_celsius>(temperature)
-    }
+pub fn boiling_point_by_pressure(pressure: Pressure) -> ThermodynamicTemperature {
+    let pressure = pressure.get::<millibar>();
+    let temperature = constants::BOILING_POINT_BY_PRESSURE.get(pressure);
+    ThermodynamicTemperature::new::<degree_celsius>(temperature)
+}
 
-    pub fn saturation_pressure_by_temperature(temperature: ThermodynamicTemperature) -> Pressure {
-        let temperature = temperature.get::<degree_celsius>();
-        let pressure = SATURATION_PRESSURE_BY_TEMPERATURE.get(temperature);
-        Pressure::new::<millibar>(pressure)
-    }
+fn saturation_pressure_by_temperature(temperature: ThermodynamicTemperature) -> Pressure {
+    let temperature = temperature.get::<degree_celsius>();
+    let pressure = constants::SATURATION_PRESSURE_BY_TEMPERATURE.get(temperature);
+    Pressure::new::<millibar>(pressure)
+}
+
+#[allow(clippy::type_complexity)]
+pub const SPECIAL_IDEAL_GAS_CONSTANT: Quantity<ISQ<P2, Z0, N2, Z0, N1, Z0, Z0>, SI<f64>, f64> =
+    Quantity {
+        dimension: PhantomData,
+        units: PhantomData,
+        value: 461.5,
+    };
+
+/// The heat capacity of water.
+/// We treat it as the same over all temperatures and phases to avoid creating or losing energy due to moving boiling point.
+pub fn heat_capacity() -> SpecificHeatCapacity {
+    SpecificHeatCapacity::new::<joule_per_kilogram_kelvin>(4180.0)
+}
+
+pub fn evaporization_energy() -> AvailableEnergy {
+    AvailableEnergy::new::<joule_per_gram>(2230.0)
 }
