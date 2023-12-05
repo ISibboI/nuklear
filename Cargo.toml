@@ -5,9 +5,24 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[[bin]]
+name = "nuklear"
+path = "src/main.rs"
+
+[lib]
+name = "nuklear"
+path = "src/main.rs"
+
 [dependencies]
 uom = { version = "0.35.0" }
 typenum = "1.17.0"
 lazy_static = "1.4.0"
 thiserror = "1.0.50"
 log = "0.4.20"
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[[bench]]
+name = "bench"
+harness = false
