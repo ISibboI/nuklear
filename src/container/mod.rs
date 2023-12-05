@@ -1,15 +1,15 @@
 use log::trace;
 use std::fmt::Display;
 use uom::fmt::DisplayStyle;
-use uom::si::f64::{Area, Mass, Time, Volume};
+use uom::si::f64::{Area, Mass, TemperatureInterval, Time, Volume};
 use uom::si::mass::kilogram;
 use uom::si::pressure::bar;
-use uom::si::thermodynamic_temperature::degree_celsius;
+use uom::si::thermodynamic_temperature::{degree_celsius, kelvin};
 use uom::si::volume::cubic_meter;
 use uom::{num_traits::Zero, si::f64::Pressure};
 
 use crate::error::Error;
-use crate::substance::water::{self, Water};
+use crate::substance::water::{self, gas_liquid_heat_transfer_coefficient, Water};
 
 #[derive(Debug, Clone)]
 pub struct WaterContainer {
@@ -195,8 +195,19 @@ impl WaterContainer {
 
     /// Transfer heat between the steam and the water in this container.
     /// The transfer speed is dependent on the surface area parameter.
-    pub fn convect(&mut self, _time: Time) {
-        todo!()
+    pub fn convect(&mut self, time: Time) {
+        // The following will work once this is implemented: https://github.com/iliekturtles/uom/issues/447
+        // let temperature_difference = self.water.temperature - self.steam.temperature;
+        let temperature_difference =
+            TemperatureInterval::new::<uom::si::temperature_interval::kelvin>(
+                self.water.temperature().get::<kelvin>() - self.steam.temperature().get::<kelvin>(),
+            );
+        let transferred_energy = gas_liquid_heat_transfer_coefficient()
+            * temperature_difference
+            * self.surface_area
+            * time;
+        self.steam += transferred_energy;
+        self.water -= transferred_energy;
     }
 }
 
