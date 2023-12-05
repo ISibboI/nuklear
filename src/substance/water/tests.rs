@@ -22,3 +22,20 @@ fn add() {
     assert!((water_sum.mass().get::<kilogram>() - 3.0).abs() < 1e-10);
     assert!((water_sum.temperature().get::<kelvin>() - 200.0).abs() < 1e-10);
 }
+
+#[test]
+fn add_zero() {
+    let water1 = Water::new(
+        Mass::new::<kilogram>(0.0),
+        ThermodynamicTemperature::new::<kelvin>(400.0),
+    );
+
+    let water2 = Water::new(
+        Mass::new::<kilogram>(2.0),
+        ThermodynamicTemperature::new::<kelvin>(100.0),
+    );
+
+    let water_sum = water1 + water2;
+    assert!((water_sum.mass().get::<kilogram>() - 2.0).abs() < 1e-10);
+    assert!((water_sum.temperature().get::<kelvin>() - 100.0).abs() < 1e-10);
+}

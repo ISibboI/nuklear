@@ -8,6 +8,7 @@ use uom::si::{
 };
 
 pub mod container;
+pub mod error;
 pub mod interpolation_table;
 pub mod substance;
 
@@ -16,11 +17,11 @@ fn main() {
         Volume::new::<cubic_meter>(1.0),
         Water::new(
             Mass::new::<kilogram>(1.0),
-            ThermodynamicTemperature::new::<degree_celsius>(20.0),
+            ThermodynamicTemperature::new::<degree_celsius>(150.0),
         ),
         Water::new(
             Mass::new::<kilogram>(1.0),
-            ThermodynamicTemperature::new::<degree_celsius>(2000.0),
+            ThermodynamicTemperature::new::<degree_celsius>(100.0),
         ),
     );
 

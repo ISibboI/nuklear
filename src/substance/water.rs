@@ -1,8 +1,10 @@
+use crate::error::Error;
 use std::marker::PhantomData;
 use typenum::{N1, N2, P2, Z0};
 use uom::num_traits::Zero;
 use uom::si::available_energy::joule_per_gram;
-use uom::si::f64::{AvailableEnergy, Pressure};
+use uom::si::f64::{AvailableEnergy, Energy, HeatTransfer, Pressure, TemperatureInterval};
+use uom::si::heat_transfer::watt_per_square_meter_kelvin;
 use uom::si::ratio::ratio;
 use uom::si::{
     f64::{Mass, MassDensity, SpecificHeatCapacity, ThermodynamicTemperature, Volume},
@@ -93,6 +95,50 @@ impl Water {
         *self += incoming_water;
         *other += outgoing_water;
     }
+
+    /// Assume that this water is liquid.
+    /// Compute the temperature after the given mass has evaporated away.
+    /// We assume that the evaporation energy will be taken from the remaining water and the evaporating water equally.
+    pub fn evaporate(&mut self, mass: Mass) -> Result<Self, Error> {
+        assert!(mass >= Mass::zero() && mass <= self.mass);
+        let evaporation_energy = phase_change_energy() * mass;
+        let cooled_self = *self - evaporation_energy;
+
+        if cooled_self.temperature().get::<kelvin>() <= 0.0 {
+            Err(Error::NonPositiveTemperature)
+        } else {
+            *self = cooled_self;
+            *self -= mass;
+            Ok(Water { mass, ..*self })
+        }
+    }
+
+    /// Compute the amount of mass that can evaporate, leaving the water at the given temperature.
+    pub fn maximum_evaporable_amount(&self, target_temperature: ThermodynamicTemperature) -> Mass {
+        if target_temperature >= self.temperature {
+            return Mass::zero();
+        }
+
+        // The following will work once this is implemented: https://github.com/iliekturtles/uom/issues/447
+        // let temperature_difference = self.temperature - target_temperature;
+        let temperature_difference =
+            TemperatureInterval::new::<uom::si::temperature_interval::kelvin>(
+                self.temperature.get::<kelvin>() - target_temperature.get::<kelvin>(),
+            );
+        let available_evaporation_energy = temperature_difference * self.mass * heat_capacity();
+        available_evaporation_energy / phase_change_energy()
+    }
+
+    /// Assume that this water is gaseous.
+    /// Compute the temperature after the given mass has condensated away.
+    /// We assume that the condensation energy will be deposited into the remaining water and the condensating water equally.
+    pub fn condensate(&mut self, mass: Mass) -> Self {
+        assert!(mass >= Mass::zero() && mass <= self.mass);
+        let condensation_energy = phase_change_energy() * mass;
+        *self += condensation_energy;
+        *self -= mass;
+        Water { mass, ..*self }
+    }
 }
 
 impl std::ops::Add for Water {
@@ -131,6 +177,12 @@ impl std::ops::Sub<Mass> for Water {
     }
 }
 
+impl std::ops::SubAssign<Mass> for Water {
+    fn sub_assign(&mut self, rhs: Mass) {
+        *self = *self - rhs;
+    }
+}
+
 impl std::ops::Sub<Volume> for Water {
     type Output = Self;
 
@@ -143,6 +195,39 @@ impl std::ops::Sub<Volume> for Water {
         let mass = self.mass * fraction;
 
         self - mass
+    }
+}
+
+impl std::ops::Add<Energy> for Water {
+    type Output = Self;
+
+    fn add(self, rhs: Energy) -> Self::Output {
+        let temperature_difference = rhs / heat_capacity() / self.mass;
+
+        Self {
+            mass: self.mass,
+            temperature: self.temperature + temperature_difference,
+        }
+    }
+}
+
+impl std::ops::AddAssign<Energy> for Water {
+    fn add_assign(&mut self, rhs: Energy) {
+        *self = *self + rhs;
+    }
+}
+
+impl std::ops::Sub<Energy> for Water {
+    type Output = Self;
+
+    fn sub(self, rhs: Energy) -> Self::Output {
+        self + (-rhs)
+    }
+}
+
+impl std::ops::SubAssign<Energy> for Water {
+    fn sub_assign(&mut self, rhs: Energy) {
+        *self = *self - rhs;
     }
 }
 
@@ -302,4 +387,9 @@ pub fn heat_capacity() -> SpecificHeatCapacity {
 /// The energy required to evaporate water, and set free by condensing water.
 pub fn phase_change_energy() -> AvailableEnergy {
     AvailableEnergy::new::<joule_per_gram>(2230.0)
+}
+
+/// The heat transfer coefficient between steam and water without a separating surface.
+pub fn gas_liquid_heat_transfer_coefficient() -> HeatTransfer {
+    HeatTransfer::new::<watt_per_square_meter_kelvin>(2800.0)
 }
