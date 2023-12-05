@@ -145,7 +145,8 @@ impl WaterContainer {
             let mut left = Mass::zero();
             let mut right = water_evaporation_mass;
             let mut iteration = 0;
-            while (right - left) > Mass::new::<kilogram>(1e-10) {
+            let target_accuracy = self.water.mass().min(self.steam.mass()) * 1e-2;
+            while (right - left) > target_accuracy {
                 assert!(right > left);
                 iteration += 1;
 
@@ -168,7 +169,8 @@ impl WaterContainer {
             let mut left = Mass::zero();
             let mut right = steam_condensation_mass;
             let mut iteration = 0;
-            while (right - left) > Mass::new::<kilogram>(1e-10) {
+
+            while (right - left) > target_accuracy {
                 assert!(right > left);
                 iteration += 1;
 
