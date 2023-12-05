@@ -28,7 +28,7 @@ fn create_container() -> WaterContainer {
 fn update_container(c: &mut Criterion) {
     let mut container = create_container();
 
-    c.bench_function("fib 20", |b| {
+    c.bench_function("update water container", |b| {
         b.iter(|| {
             container.convect(Time::new::<second>(black_box(0.1)));
             container.evaporate_condensate();
