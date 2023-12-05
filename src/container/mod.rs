@@ -32,10 +32,10 @@ pub struct PhaseEquillibrium {
 }
 
 impl WaterContainer {
-    pub fn new(volume: Volume, water: Water, steam: Water) -> Self {
+    pub fn new(volume: Volume, surface_area: Area, water: Water, steam: Water) -> Self {
         Self {
             volume,
-            surface_area: Area::zero(),
+            surface_area,
             water,
             steam,
         }
