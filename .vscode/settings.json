@@ -2,5 +2,9 @@
     "rust-analyzer.linkedProjects": [
         "./Cargo.toml"
     ],
-    "cSpell.language": "en-GB"
+    "cSpell.language": "en-GB",
+    "cSpell.words": [
+        "nalgebra",
+        "susceptance"
+    ]
 }

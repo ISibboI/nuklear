@@ -1,15 +1,20 @@
-use std::{f64::consts::TAU, marker::PhantomData};
+use std::{f64::consts::TAU, fmt::Display, marker::PhantomData};
 
-use uom::si::{
-    angle::revolution,
-    angular_velocity::revolution_per_second,
-    f64::{
-        Angle, AngularVelocity, ElectricPotential, ElectricalResistance, MagneticFlux,
-        MomentOfInertia, Power, Time,
+use uom::{
+    fmt::DisplayStyle,
+    si::{
+        angle::revolution,
+        angular_velocity::radian_per_second,
+        f64::{
+            Angle, AngularVelocity, ElectricPotential, Energy, MagneticFlux, MomentOfInertia,
+            Power, Time,
+        },
+        power::watt,
+        ratio::ratio,
+        time::second,
+        Quantity,
     },
-    frequency::hertz,
-    ratio::ratio,
-    Quantity,
+    ConstZero,
 };
 
 pub struct SynchronousMachine {
@@ -69,52 +74,69 @@ impl SynchronousMachine {
         self.angular_velocity * self.flux_linkage
     }
 
-    pub fn apply_mechanical_electrical_power(
+    pub fn internal_voltages_per_phase(&self) -> [ElectricPotential; 3] {
+        [
+            self.peak_internal_voltage() * (self.angular_position + PHASE_OFFSETS[0]).sin(),
+            self.peak_internal_voltage() * (self.angular_position + PHASE_OFFSETS[1]).sin(),
+            self.peak_internal_voltage() * (self.angular_position + PHASE_OFFSETS[2]).sin(),
+        ]
+    }
+
+    pub fn signed_angular_kinetic_energy(&self) -> Energy {
+        self.moment_of_inertia * self.angular_velocity * self.angular_velocity / 2.0
+            * self.angular_velocity.value.signum()
+    }
+
+    fn apply_mechanical_electrical_power(
         &mut self,
         mechanical_acceleration_power: Power,
         electrical_deceleration_power: Power,
-        time: Time,
+        delta_time: Time,
     ) {
+        //dbg!(self.angular_velocity);
         let angular_acceleration_power =
             mechanical_acceleration_power - electrical_deceleration_power;
-        let angular_acceleration =
-            angular_acceleration_power / (self.moment_of_inertia * self.angular_velocity);
-        let angular_velocity_increment = angular_acceleration * time;
-        self.angular_velocity += AngularVelocity::new::<revolution_per_second>(
-            angular_velocity_increment.get::<hertz>(),
+        //dbg!(angular_acceleration_power);
+        let signed_angular_kinetic_energy = self.signed_angular_kinetic_energy();
+        //dbg!(signed_angular_kinetic_energy);
+        let kinetic_energy_increment = angular_acceleration_power * delta_time;
+        //dbg!(kinetic_energy_increment);
+        let signed_angular_kinetic_energy =
+            signed_angular_kinetic_energy + kinetic_energy_increment;
+        //dbg!(signed_angular_kinetic_energy);
+        self.angular_velocity = AngularVelocity::new::<radian_per_second>(
+            (signed_angular_kinetic_energy.value.signum()
+                * (signed_angular_kinetic_energy.abs() * 2.0 / self.moment_of_inertia).sqrt())
+            .value,
         );
+        //dbg!(self.angular_velocity);
+        //dbg!(self.signed_angular_kinetic_energy());
     }
 
-    pub fn rotate(&mut self, time: Time) {
-        let angular_increment = self.angular_velocity * time;
+    fn rotate(&mut self, delta_time: Time) {
+        let angular_increment = self.angular_velocity * delta_time;
         self.angular_position += Angle::new::<revolution>(angular_increment.get::<ratio>());
         self.angular_position %= Angle::FULL_TURN;
     }
 
-    /// Sum of electrical power of each phase.
-    pub fn sum_of_phase_powers(
-        &self,
-        power_grid_voltage: ElectricPotential,
-        power_grid_angular_position: Angle,
-        power_grid_resistance: ElectricalResistance,
-    ) -> Power {
-        PHASE_OFFSETS
-            .iter()
-            .copied()
-            .map(|phase_offset| {
-                let angular_position = self.angular_position + phase_offset;
-                debug_assert!(angular_position >= -Angle::FULL_TURN - Angle::FULL_TURN);
-                debug_assert!(angular_position < Angle::FULL_TURN + Angle::FULL_TURN);
-
-                let power_grid_phase_voltage =
-                    power_grid_voltage * (power_grid_angular_position + phase_offset).sin();
-                let phase_internal_voltage = self.peak_internal_voltage() * angular_position.sin();
-                let voltage_lead = phase_internal_voltage - power_grid_phase_voltage;
-                let current = voltage_lead / power_grid_resistance;
-                // println!("{phase_offset:?}: {current:?} * {phase_internal_voltage:?}");
-                current * phase_internal_voltage
-            })
-            .sum::<Power>()
+    pub fn update(
+        &mut self,
+        mechanical_acceleration_power: Power,
+        electrical_deceleration_power: Power,
+        delta_time: Time,
+    ) {
+        println!(
+            "SM update: mech acc: {:.2}; elec dec: {}; dt: {}",
+            mechanical_acceleration_power.into_format_args(watt, DisplayStyle::Abbreviation),
+            electrical_deceleration_power.into_format_args(watt, DisplayStyle::Abbreviation),
+            delta_time.into_format_args(second, DisplayStyle::Abbreviation),
+        );
+        self.apply_mechanical_electrical_power(
+            mechanical_acceleration_power,
+            electrical_deceleration_power,
+            delta_time,
+        );
+        self.rotate(delta_time);
     }
 }
 
@@ -136,89 +158,21 @@ const PHASE_OFFSETS: &[Angle] = &[
     },
 ];
 
-#[cfg(test)]
-mod tests {
-    use std::f64::consts::TAU;
+impl Display for SynchronousMachine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let angle = self.angular_position % Angle::FULL_TURN;
+        let angle = if angle < Angle::ZERO {
+            angle + Angle::FULL_TURN
+        } else {
+            angle
+        };
 
-    use uom::{
-        fmt::DisplayStyle,
-        si::{
-            angle::{degree, radian},
-            angular_velocity::revolution_per_second,
-            electric_potential::volt,
-            electrical_resistance::ohm,
-            f64::{
-                Angle, AngularVelocity, ElectricPotential, ElectricalResistance, MagneticFlux,
-                MomentOfInertia, Power,
-            },
-            magnetic_flux::weber,
-            moment_of_inertia::kilogram_square_meter,
-            power::watt,
-        },
-        ConstZero,
-    };
-
-    use crate::synchronous_machine::PHASE_OFFSETS;
-
-    use super::SynchronousMachine;
-
-    #[test]
-    fn electric_current() {
-        assert!((PHASE_OFFSETS[0] - Angle::ZERO).get::<degree>().abs() < 1e-10);
-        assert!(
-            (PHASE_OFFSETS[1] - Angle::new::<degree>(120.0))
-                .get::<degree>()
-                .abs()
-                < 1e-10
-        );
-        assert!(
-            (PHASE_OFFSETS[2] - Angle::new::<degree>(240.0))
-                .get::<degree>()
-                .abs()
-                < 1e-10
-        );
-
-        let mut generator = SynchronousMachine::new(
-            MomentOfInertia::new::<kilogram_square_meter>(1.0),
-            Angle::new::<radian>(0.0),
-            AngularVelocity::new::<revolution_per_second>(1.0),
-            Power::new::<watt>(1.0),
-            MagneticFlux::new::<weber>(1.0 / TAU),
-            Power::ZERO,
-        );
-
-        let expected_generator_voltage = ElectricPotential::new::<volt>(1.0);
-        let generator_voltage = generator.peak_internal_voltage();
-        let power_grid_voltage = generator_voltage;
-        assert!(
-            (generator_voltage - expected_generator_voltage)
-                .abs()
-                .get::<volt>()
-                < 1e-10,
-            "expected: {}; actual: {}",
-            expected_generator_voltage.into_format_args(volt, DisplayStyle::Abbreviation),
-            generator_voltage.into_format_args(volt, DisplayStyle::Abbreviation)
-        );
-
-        for angle in 0..12 {
-            let angle = angle * 30;
-            generator.angular_position = Angle::new::<degree>(f64::from(angle));
-            let power = generator.sum_of_phase_powers(
-                power_grid_voltage,
-                Angle::new::<radian>(0.0),
-                ElectricalResistance::new::<ohm>(1.0),
-            );
-
-            if angle == 0 {
-                assert!(power.get::<watt>().abs() < 1e-10);
-            }
-            println!(
-                "angle: {:.0}; power: {:.2}",
-                generator
-                    .angular_position
-                    .into_format_args(degree, DisplayStyle::Abbreviation),
-                power.into_format_args(watt, DisplayStyle::Abbreviation)
-            )
-        }
+        write!(
+            f,
+            "{} {}",
+            self.angular_velocity
+                .into_format_args(radian_per_second, uom::fmt::DisplayStyle::Abbreviation),
+            angle.into_format_args(revolution, uom::fmt::DisplayStyle::Abbreviation)
+        )
     }
 }
