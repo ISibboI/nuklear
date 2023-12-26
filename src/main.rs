@@ -10,9 +10,11 @@ use uom::si::{
 };
 
 pub mod container;
+pub mod electrical_grid;
 pub mod error;
 pub mod interpolation_table;
 pub mod substance;
+pub mod synchronous_machine;
 
 pub fn main() {
     // Rectangular container of dimensions 20x2x2
