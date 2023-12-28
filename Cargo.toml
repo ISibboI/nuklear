@@ -15,9 +15,17 @@ path = "src/main.rs"
 
 [dependencies]
 # physics and math
-uom = { version = "0.35.0" }
+uom = { version = "0.35.0", default-features = false, features = [
+    "f64",
+    "si",
+    "std",
+] }
 typenum = "1.17.0"
 nalgebra = "0.32.3"
+num-complex = "0.4.4"
+
+# graphs
+petgraph = "0.6.4"
 
 # util
 lazy_static = "1.4.0"

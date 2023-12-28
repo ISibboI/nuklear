@@ -1,7 +1,6 @@
 use std::env::args;
 
 use container::WaterContainer;
-use electrical_grid::ElectricalGrid;
 use log::error;
 use nalgebra::DMatrix;
 use substance::water::Water;
@@ -46,7 +45,7 @@ pub fn main() {
 }
 
 fn electrical_grid_sim() {
-    let mut electrical_grid = ElectricalGrid::new(
+    /*let mut electrical_grid = ElectricalGrid::new(
         vec![
             SynchronousMachine::new(
                 MomentOfInertia::new::<kilogram_square_meter>(1.0),
@@ -55,6 +54,7 @@ fn electrical_grid_sim() {
                 Power::ZERO,
                 MagneticFlux::new::<weber>(1.0),
                 Power::ZERO,
+                ElectricalImpedance::new::<ohm>(0.01),
             ),
             SynchronousMachine::new(
                 MomentOfInertia::new::<kilogram_square_meter>(1.0),
@@ -63,6 +63,7 @@ fn electrical_grid_sim() {
                 Power::ZERO,
                 MagneticFlux::new::<weber>(1.0),
                 Power::ZERO,
+                ElectricalImpedance::new::<ohm>(0.01),
             ),
             SynchronousMachine::new(
                 MomentOfInertia::new::<kilogram_square_meter>(0.1),
@@ -71,6 +72,7 @@ fn electrical_grid_sim() {
                 Power::ZERO,
                 MagneticFlux::new::<weber>(1.0),
                 Power::ZERO,
+                ElectricalImpedance::new::<ohm>(0.01),
             ),
         ],
         DMatrix::repeat(3, 3, ElectricalConductance::new::<siemens>(1.0)),
@@ -98,7 +100,7 @@ fn electrical_grid_sim() {
         );
         electrical_grid.update(&mechanical_acceleration_powers, delta_time);
         println!(" == Iteration {iteration:2.} ==\n{electrical_grid}\n ====");
-    }
+    }*/
 }
 
 fn container_sim() {

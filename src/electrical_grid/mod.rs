@@ -8,10 +8,11 @@ use uom::{
 
 use crate::synchronous_machine::SynchronousMachine;
 
-pub type ElectricalSusceptance = ElectricalConductance;
+pub mod resistance_network;
 
-pub struct ElectricalGrid {
+/*pub struct ElectricalGrid {
     synchronous_machines: Vec<SynchronousMachine>,
+    // admittance_matrix: DMatrix<ElectricalAdmittance>,
     conductance_matrix: DMatrix<ElectricalConductance>,
     susceptance_matrix: DMatrix<ElectricalSusceptance>,
 }
@@ -130,3 +131,4 @@ impl Display for ElectricalGrid {
         Ok(())
     }
 }
+*/
