@@ -246,6 +246,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "interior_mut"
+version = "0.1.0"
+source = "git+https://github.com/ISibboI/interior-mut?rev=4a18e35c49f37d480b3d9be17794a9e95d44a593#4a18e35c49f37d480b3d9be17794a9e95d44a593"
+
+[[package]]
 name = "is-terminal"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -361,6 +366,7 @@ name = "nuklear"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "interior_mut",
  "lazy_static",
  "log",
  "nalgebra",

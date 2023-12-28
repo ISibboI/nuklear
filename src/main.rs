@@ -32,6 +32,7 @@ pub mod error;
 pub mod interpolation_table;
 pub mod substance;
 pub mod synchronous_machine;
+pub mod type_parameterisation;
 
 pub fn main() {
     match args().nth(1) {

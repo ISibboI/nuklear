@@ -29,6 +29,7 @@ petgraph = "0.6.4"
 
 # util
 lazy_static = "1.4.0"
+interior_mut = { git = "https://github.com/ISibboI/interior-mut", rev = "4a18e35c49f37d480b3d9be17794a9e95d44a593" }
 
 # error handling
 thiserror = "1.0.50"
