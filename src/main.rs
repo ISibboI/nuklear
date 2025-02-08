@@ -123,6 +123,6 @@ fn container_sim() {
     for iteration in 1..=10 {
         container.evaporate_condensate();
         container.convect(Time::new::<second>(0.1));
-        println!("Iteration {iteration:2.}: {container}");
+        println!("Iteration {iteration:2}: {container}");
     }
 }
